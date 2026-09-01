@@ -3,6 +3,8 @@ from html.parser import HTMLParser
 from urllib.parse import urlparse, parse_qs
 import re
 import xml.etree.ElementTree as ET
+import base64, io
+from PIL import Image
 
 ROOT=Path(__file__).resolve().parents[1]
 HTML=(ROOT/'index.html').read_text(encoding='utf-8')
@@ -39,6 +41,12 @@ assert any('google.com/maps' in a.get('href','') for a in p.links)
 for img in p.images:
     src=img.get('src'); path=ROOT/src
     assert src.startswith('images/') and path.exists() and img.get('alt','').strip()
-    if path.suffix=='.svg': ET.parse(path)
+    if path.suffix=='.svg':
+        ET.parse(path)
+        text=path.read_text(encoding='utf-8')
+        m=re.search(r'data:image/jpeg;base64,([^\"\']+)', text)
+        assert m, f'JPEG incorporado ausente em {src}'
+        raw=base64.b64decode(m.group(1), validate=True)
+        im=Image.open(io.BytesIO(raw)); im.verify()
 for ref in re.findall(r'href="#([^"]+)"',HTML): assert ref in p.ids
 print(f'landing checks: PASS | {len(p.images)} imagens | {len(wa)} CTAs WhatsApp')
