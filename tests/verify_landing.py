@@ -2,9 +2,7 @@ from pathlib import Path
 from html.parser import HTMLParser
 from urllib.parse import urlparse, parse_qs
 import re
-import xml.etree.ElementTree as ET
-import base64, io
-from PIL import Image
+import struct
 
 ROOT=Path(__file__).resolve().parents[1]
 HTML=(ROOT/'index.html').read_text(encoding='utf-8')
@@ -27,6 +25,9 @@ class P(HTMLParser):
 
 p=P(); p.feed(HTML)
 assert p.h1==1
+assert len(p.images)==3, f'A página deve exibir 3 imagens temáticas; encontrou {len(p.images)}'
+assert len({img.get('src') for img in p.images})==3, 'As imagens de consulta, exame e cirurgia devem ser diferentes'
+assert {img.get('data-visual') for img in p.images}=={'consultation','exam','surgery'}
 assert not p.forbidden_layout, f'Elementos de layout proibidos: {p.forbidden_layout}'
 assert p.body_children[0][0]=='main' and p.body_children[0][1].get('id')=='inicio'
 assert 'header{' not in HTML and 'header ' not in HTML and 'footer{' not in HTML
@@ -51,16 +52,9 @@ assert any('google.com/maps' in a.get('href','') for a in p.links)
 for img in p.images:
     src=img.get('src'); path=ROOT/src
     assert src.startswith('images/') and path.exists() and img.get('alt','').strip()
-    if path.suffix=='.svg':
-        ET.parse(path)
-        text=path.read_text(encoding='utf-8')
-        m=re.search(r'data:image/jpeg;base64,([^\"\']+)', text)
-        assert m, f'JPEG incorporado ausente em {src}'
-        raw=base64.b64decode(m.group(1), validate=True)
-        im=Image.open(io.BytesIO(raw)); im.verify()
-        im=Image.open(io.BytesIO(raw))
-    else:
-        im=Image.open(path); im.verify(); im=Image.open(path)
-    assert im.width>=1600 and im.height>=900, f'Imagem sem alta resolução: {src} ({im.width}x{im.height})'
+    raw=path.read_bytes()
+    assert path.suffix=='.png' and raw[:8]==b'\x89PNG\r\n\x1a\n', f'PNG inválido: {src}'
+    width,height=struct.unpack('>II',raw[16:24])
+    assert width>=1600 and height>=900, f'Imagem sem alta resolução: {src} ({width}x{height})'
 for ref in re.findall(r'href="#([^"]+)"',HTML): assert ref in p.ids
 print(f'landing checks: PASS | {len(p.images)} imagens | {len(wa)} CTAs WhatsApp')
