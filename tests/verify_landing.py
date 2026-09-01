@@ -47,6 +47,11 @@ for a in wa:
     href=a['href']; assert href.startswith('https://wa.me/5561998745357?text=')
     assert parse_qs(urlparse(href).query).get('text')
     assert a.get('target')=='_blank' and 'noopener' in a.get('rel','')
+insurance=[a for a in wa if a.get('data-track','').startswith('whatsapp_insurance')]
+assert len(insurance)==2, f'Os 2 botões de convênio devem abrir o WhatsApp; encontrou {len(insurance)}'
+for a in insurance:
+    message=parse_qs(urlparse(a['href']).query).get('text')
+    assert message==['Gostaria de saber se meu convênio é aceito.'], f'Mensagem de convênio incorreta: {message}'
 assert any(a.get('href')=='tel:+556135473607' for a in p.links)
 assert any('google.com/maps' in a.get('href','') for a in p.links)
 for img in p.images:
